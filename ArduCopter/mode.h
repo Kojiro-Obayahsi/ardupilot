@@ -39,6 +39,8 @@ public:
         AUTOROTATE =   26,  // Autonomous autorotation
         AUTO_RTL =     27,  // Auto RTL, this is not a true mode, AUTO will report as this mode if entered to perform a DO_LAND_START Landing sequence
         TURTLE =       28,  // Flip over after crash
+        RTL_HOME =     98,  // ignore rally points and automatically return to launching point only
+        MYFIRST =      99,  // My first flight mode
 
         // Mode number 127 reserved for the "drone show mode" in the Skybrush
         // fork at https://github.com/skybrush-io/ardupilot
@@ -1408,6 +1410,120 @@ private:
 };
 
 
+class ModeRTL_HOME : public Mode {
+
+public:
+    // inherit constructor
+    using Mode::Mode;
+    Number mode_number() const override { return Number::RTL_HOME; }
+
+    bool init(bool ignore_checks) override;
+    void run() override {
+        return run(true);
+    }
+    void run(bool disarm_on_land);
+
+    bool requires_GPS() const override { return true; }
+    bool has_manual_throttle() const override { return false; }
+    bool allows_arming(AP_Arming::Method method) const override { return false; };
+    bool is_autopilot() const override { return true; }
+
+    bool requires_terrain_failsafe() const override { return true; }
+
+    // for reporting to GCS
+    bool get_wp(Location &loc) const override;
+
+    bool use_pilot_yaw() const override;
+
+    bool set_speed_xy(float speed_xy_cms) override;
+    bool set_speed_up(float speed_up_cms) override;
+    bool set_speed_down(float speed_down_cms) override;
+
+    // RTL states
+    enum class SubMode : uint8_t {
+        STARTING,
+        INITIAL_CLIMB,
+        RETURN_HOME,
+        LOITER_AT_HOME,
+        FINAL_DESCENT,
+        LAND
+    };
+    SubMode state() { return _state; }
+
+    // this should probably not be exposed
+    bool state_complete() const { return _state_complete; }
+
+    virtual bool is_landing() const override;
+
+    void restart_without_terrain();
+
+    // enum for RTL_ALT_TYPE parameter
+    enum class RTLAltTypeHome : int8_t {
+        RTL_ALTTYPE_RELATIVE_HOME = 0,
+        RTL_ALTTYPE_TERRAIN_HOME = 1
+    };
+    ModeRTL_HOME::RTLAltTypeHome get_alt_type() const;
+
+protected:
+
+    const char *name() const override { return "RTL_HOME"; }
+    const char *name4() const override { return "RTL_HOME "; }
+
+    // for reporting to GCS
+    uint32_t wp_distance() const override;
+    int32_t wp_bearing() const override;
+    float crosstrack_error() const override { return wp_nav->crosstrack_error();}
+
+    void descent_start();
+    void descent_run();
+    void land_start();
+    void land_run(bool disarm_on_land);
+
+    void set_descent_target_alt(uint32_t alt) { rtl_path.descent_target.alt = alt; }
+
+private:
+
+    void climb_start();
+    void return_start();
+    void climb_return_run();
+    void loiterathome_start();
+    void loiterathome_run();
+    void build_path();
+    void compute_return_target();
+
+    SubMode _state = SubMode::INITIAL_CLIMB;  // records state of rtl (initial climb, returning home, etc)
+    bool _state_complete = false; // set to true if the current state is completed
+
+    struct {
+        // NEU w/ Z element alt-above-ekf-origin unless use_terrain is true in which case Z element is alt-above-terrain
+        Location origin_point;
+        Location climb_target;
+        Location return_target;
+        Location descent_target;
+        bool land;
+    } rtl_path;
+
+    // return target alt type
+    enum class ReturnTargetAltType {
+        RELATIVE = 0,
+        RANGEFINDER = 1,
+        TERRAINDATABASE = 2
+    };
+
+    // Loiter timer - Records how long we have been in loiter
+    uint32_t _loiter_start_time;
+
+    bool terrain_following_allowed;
+
+    // enum for RTL_OPTIONS parameter
+    enum class Options : int32_t {
+        // First pair of bits are still available, pilot yaw was mapped to bit 2 for symmetry with auto
+        IgnorePilotYaw    = (1U << 2),
+    };
+
+};
+
+
 class ModeSmartRTL : public ModeRTL {
 
 public:
@@ -1491,6 +1607,31 @@ private:
 
 };
 
+class ModeMyfirst : public Mode {
+
+public:
+    // inherit constructor
+    using Mode::Mode;
+    Number mode_number() const override { return Number::MYFIRST; }
+
+    virtual void run() override;
+
+    bool requires_GPS() const override { return false; }
+    bool has_manual_throttle() const override { return true; }
+    bool allows_arming(AP_Arming::Method method) const override { return true; };
+    bool is_autopilot() const override { return false; }
+    bool allows_save_trim() const override { return true; }
+    bool allows_autotune() const override { return true; }
+    bool allows_flip() const override { return true; }
+
+protected:
+
+    const char *name() const override { return "MYFIRST"; }
+    const char *name4() const override { return "MYFI"; }
+
+private:
+
+};
 
 class ModeStabilize : public Mode {
 

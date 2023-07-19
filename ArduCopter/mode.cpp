@@ -37,6 +37,10 @@ Mode *Copter::mode_from_mode_num(const Mode::Number mode)
             break;
 #endif
 
+        case Mode::Number::MYFIRST:
+            ret = &mode_myfirst;
+            break;
+
         case Mode::Number::STABILIZE:
             ret = &mode_stabilize;
             break;
@@ -76,6 +80,10 @@ Mode *Copter::mode_from_mode_num(const Mode::Number mode)
 #if MODE_RTL_ENABLED == ENABLED
         case Mode::Number::RTL:
             ret = &mode_rtl;
+            break;
+
+        case Mode::Number::RTL_HOME:
+            ret = &mode_rtl_home;
             break;
 #endif
 
