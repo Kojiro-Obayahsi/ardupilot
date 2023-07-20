@@ -408,12 +408,8 @@ void ModeRTL_HOME::build_path()
 //   return target's altitude is updated to a higher altitude that the vehicle can safely return at (frame may also be set)
 void ModeRTL_HOME::compute_return_target()
 {
-    // set return target to nearest rally point or home position (Note: alt is absolute)
-// #if HAL_RALLY_ENABLED
-//     rtl_path.return_target = copter.rally.calc_best_rally_or_home_location(copter.current_loc, ahrs.get_home().alt);
-// #else
+    
     rtl_path.return_target = ahrs.get_home();
-// #endif
 
     // curr_alt is current altitude above home or above terrain depending upon use_terrain
     int32_t curr_alt = copter.current_loc.alt;
